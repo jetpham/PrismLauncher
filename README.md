@@ -11,6 +11,9 @@
   <br />This is a <b>fork</b> of the MultiMC Launcher and is <b>not</b> endorsed by it.
 </p>
 
+> **⚠️ IMPORTANT NOTICE: This is a fork of Prism Launcher**  
+> This repository is a personal fork and is not affiliated with or endorsed by the official Prism Launcher project. For the official version, please visit [prismlauncher.org](https://prismlauncher.org).
+
 ## Installation
 
 <a href="https://repology.org/project/prismlauncher/versions">
