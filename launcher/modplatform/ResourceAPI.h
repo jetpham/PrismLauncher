@@ -44,6 +44,7 @@
 
 #include <list>
 #include <optional>
+#include <utility>
 
 #include "../Version.h"
 
@@ -81,22 +82,22 @@ class ResourceAPI {
         std::optional<QString> search;
         std::optional<SortingMethod> sorting;
         std::optional<ModPlatform::ModLoaderTypes> loaders;
-        std::optional<std::list<Version>> versions;
+        std::optional<std::vector<Version>> versions;
         std::optional<ModPlatform::Side> side;
         std::optional<QStringList> categoryIds;
         bool openSource;
     };
 
     struct VersionSearchArgs {
-        ModPlatform::IndexedPack pack;
+        ModPlatform::IndexedPack::Ptr pack;
 
-        std::optional<std::list<Version>> mcVersions;
+        std::optional<std::vector<Version>> mcVersions;
         std::optional<ModPlatform::ModLoaderTypes> loaders;
         ModPlatform::ResourceType resourceType;
     };
 
     struct ProjectInfoArgs {
-        ModPlatform::IndexedPack pack;
+        ModPlatform::IndexedPack::Ptr pack;
     };
 
     struct DependencySearchArgs {
@@ -112,10 +113,10 @@ class ResourceAPI {
    public slots:
     virtual Task::Ptr searchProjects(SearchArgs&&, Callback<QList<ModPlatform::IndexedPack::Ptr>>&&) const;
 
-    virtual Task::Ptr getProject(QString addonId, std::shared_ptr<QByteArray> response) const;
-    virtual Task::Ptr getProjects(QStringList addonIds, std::shared_ptr<QByteArray> response) const = 0;
+    virtual std::pair<Task::Ptr, QByteArray*> getProject(QString addonId) const;
+    virtual std::pair<Task::Ptr, QByteArray*> getProjects(QStringList addonIds) const = 0;
 
-    virtual Task::Ptr getProjectInfo(ProjectInfoArgs&&, Callback<ModPlatform::IndexedPack>&&) const;
+    virtual Task::Ptr getProjectInfo(ProjectInfoArgs&&, Callback<ModPlatform::IndexedPack::Ptr>&&) const;
     Task::Ptr getProjectVersions(VersionSearchArgs&& args, Callback<QVector<ModPlatform::IndexedVersion>>&& callbacks) const;
     virtual Task::Ptr getDependencyVersion(DependencySearchArgs&&, Callback<ModPlatform::IndexedVersion>&&) const;
 
@@ -124,7 +125,7 @@ class ResourceAPI {
 
     QString mapMCVersionToModrinth(Version v) const;
 
-    QString getGameVersionsString(std::list<Version> mcVersions) const;
+    QString getGameVersionsString(std::vector<Version> mcVersions) const;
 
    public:
     virtual auto getSearchURL(SearchArgs const& args) const -> std::optional<QString> = 0;

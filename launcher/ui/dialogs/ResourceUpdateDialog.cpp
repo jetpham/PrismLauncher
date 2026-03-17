@@ -22,19 +22,21 @@
 #include "modplatform/flame/FlameCheckUpdate.h"
 #include "modplatform/modrinth/ModrinthCheckUpdate.h"
 
+#include <QClipboard>
+#include <QShortcut>
 #include <QTextBrowser>
 #include <QTreeWidgetItem>
 
 #include <optional>
 
-static std::list<Version> mcVersions(BaseInstance* inst)
+static std::vector<Version> mcVersions(BaseInstance* inst)
 {
     return { static_cast<MinecraftInstance*>(inst)->getPackProfile()->getComponent("net.minecraft")->getVersion() };
 }
 
 ResourceUpdateDialog::ResourceUpdateDialog(QWidget* parent,
                                            BaseInstance* instance,
-                                           const std::shared_ptr<ResourceFolderModel> resourceModel,
+                                           ResourceFolderModel* resourceModel,
                                            QList<Resource*>& searchFor,
                                            bool includeDeps,
                                            QList<ModPlatform::ModLoaderType> loadersList)
@@ -161,7 +163,7 @@ void ResourceUpdateDialog::checkCandidates()
             const auto& reason = std::get<1>(failed);
             const auto& recover_url = std::get<2>(failed);
 
-            qDebug() << mod->name() << " failed to check for updates!";
+            qDebug() << mod->name() << "failed to check for updates!";
 
             text += tr("Mod name: %1").arg(mod->name()) + "<br>";
             if (!reason.isEmpty())
@@ -176,17 +178,25 @@ void ResourceUpdateDialog::checkCandidates()
         ScrollMessageBox message_dialog(m_parent, tr("Failed to check for updates"),
                                         tr("Could not check or get the following resources for updates:<br>"
                                            "Do you wish to proceed without those resources?"),
-                                        text);
+                                        text, "Disable unavailable mods");
         message_dialog.setModal(true);
         if (message_dialog.exec() == QDialog::Rejected) {
             m_aborted = true;
             QMetaObject::invokeMethod(this, "reject", Qt::QueuedConnection);
             return;
         }
+
+        // Disable unavailable mods
+        if (message_dialog.isOptionChecked()) {
+            for (const auto& failed : m_failedCheckUpdate) {
+                const auto& mod = std::get<0>(failed);
+                mod->enable(EnableAction::DISABLE);
+            }
+        }
     }
 
     if (m_includeDeps && !APPLICATION->settings()->get("ModDependenciesDisabled").toBool()) {  // dependencies
-        auto* mod_model = dynamic_cast<ModFolderModel*>(m_resourceModel.get());
+        auto* mod_model = dynamic_cast<ModFolderModel*>(m_resourceModel);
 
         if (mod_model != nullptr) {
             auto depTask = makeShared<GetModDependenciesTask>(m_instance, mod_model, selectedVers);
@@ -437,30 +447,34 @@ void ResourceUpdateDialog::appendResource(CheckUpdateTask::Update const& info, Q
     item_top->setExpanded(true);
 
     auto provider_item = new QTreeWidgetItem(item_top);
-    provider_item->setText(0, tr("Provider: %1").arg(ModPlatform::ProviderCapabilities::readableName(info.provider)));
+    QString provider_name = ModPlatform::ProviderCapabilities::readableName(info.provider);
+    provider_item->setText(0, tr("Provider: %1").arg(provider_name));
+    provider_item->setData(0, Qt::UserRole, provider_name);
 
     auto old_version_item = new QTreeWidgetItem(item_top);
     old_version_item->setText(0, tr("Old version: %1").arg(info.old_version));
+    old_version_item->setData(0, Qt::UserRole, info.old_version);
 
     auto new_version_item = new QTreeWidgetItem(item_top);
     new_version_item->setText(0, tr("New version: %1").arg(info.new_version));
+    new_version_item->setData(0, Qt::UserRole, info.new_version);
 
     if (info.new_version_type.has_value()) {
-        auto new_version_type_itme = new QTreeWidgetItem(item_top);
-        new_version_type_itme->setText(0, tr("New Version Type: %1").arg(info.new_version_type.value().toString()));
+        auto new_version_type_item = new QTreeWidgetItem(item_top);
+        new_version_type_item->setText(0, tr("New Version Type: %1").arg(info.new_version_type.value().toString()));
+        new_version_type_item->setData(0, Qt::UserRole, info.new_version_type.value().toString());
     }
 
     if (!requiredBy.isEmpty()) {
         auto requiredByItem = new QTreeWidgetItem(item_top);
         if (requiredBy.length() == 1) {
             requiredByItem->setText(0, tr("Required by: %1").arg(requiredBy.back()));
+            requiredByItem->setData(0, Qt::UserRole, requiredBy.back());
         } else {
             requiredByItem->setText(0, tr("Required by:"));
-            auto i = 0;
             for (auto req : requiredBy) {
                 auto reqItem = new QTreeWidgetItem(requiredByItem);
                 reqItem->setText(0, req);
-                reqItem->insertChildren(i++, { reqItem });
             }
         }
 
@@ -475,6 +489,7 @@ void ResourceUpdateDialog::appendResource(CheckUpdateTask::Update const& info, Q
     auto changelog_area = new QTextBrowser();
 
     QString text = info.changelog;
+    changelog->setData(0, Qt::UserRole, text);
     if (info.provider == ModPlatform::ResourceProvider::MODRINTH) {
         text = markdownToHTML(info.changelog.toUtf8());
     }

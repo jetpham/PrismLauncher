@@ -23,6 +23,7 @@
 #include <QMetaType>
 #include <QString>
 #include <QVariant>
+#include <compare>
 #include <memory>
 
 class QIODevice;
@@ -57,6 +58,11 @@ QString toString(Side side);
 Side fromString(QString side);
 }  // namespace SideUtils
 
+namespace DependencyTypeUtils {
+QString toString(DependencyType type);
+DependencyType fromString(const QString& str);
+}  // namespace DependencyTypeUtils
+
 namespace ProviderCapabilities {
 const char* name(ResourceProvider);
 QString readableName(ResourceProvider);
@@ -75,31 +81,19 @@ struct DonationData {
 };
 
 struct IndexedVersionType {
-    enum class VersionType { Release = 1, Beta, Alpha, Unknown };
-    IndexedVersionType(const QString& type);
-    IndexedVersionType(const IndexedVersionType::VersionType& type);
-    IndexedVersionType(const IndexedVersionType& type);
-    IndexedVersionType() : IndexedVersionType(IndexedVersionType::VersionType::Unknown) {}
-    static const QString toString(const IndexedVersionType::VersionType& type);
-    static IndexedVersionType::VersionType enumFromString(const QString& type);
-    bool isValid() const { return m_type != IndexedVersionType::VersionType::Unknown; }
-    IndexedVersionType& operator=(const IndexedVersionType& other);
-    bool operator==(const IndexedVersionType& other) const { return m_type == other.m_type; }
-    bool operator==(const IndexedVersionType::VersionType& type) const { return m_type == type; }
-    bool operator!=(const IndexedVersionType& other) const { return m_type != other.m_type; }
-    bool operator!=(const IndexedVersionType::VersionType& type) const { return m_type != type; }
-    bool operator<(const IndexedVersionType& other) const { return m_type < other.m_type; }
-    bool operator<(const IndexedVersionType::VersionType& type) const { return m_type < type; }
-    bool operator<=(const IndexedVersionType& other) const { return m_type <= other.m_type; }
-    bool operator<=(const IndexedVersionType::VersionType& type) const { return m_type <= type; }
-    bool operator>(const IndexedVersionType& other) const { return m_type > other.m_type; }
-    bool operator>(const IndexedVersionType::VersionType& type) const { return m_type > type; }
-    bool operator>=(const IndexedVersionType& other) const { return m_type >= other.m_type; }
-    bool operator>=(const IndexedVersionType::VersionType& type) const { return m_type >= type; }
+    enum class Enum { Unknown, Release = 1, Beta, Alpha };
+    using enum Enum;
+    constexpr IndexedVersionType(Enum e = Unknown) : m_type(e) {}
+    static IndexedVersionType fromString(const QString& type);
+    inline bool isValid() const { return m_type != Unknown; }
+    std::strong_ordering operator<=>(const IndexedVersionType& other) const = default;
+    std::strong_ordering operator<=>(const IndexedVersionType::Enum& other) const { return m_type <=> other; }
+    QString toString() const;
+    explicit operator int() const { return static_cast<int>(m_type); }
+    explicit operator IndexedVersionType::Enum() { return m_type; }
 
-    QString toString() const { return toString(m_type); }
-
-    IndexedVersionType::VersionType m_type;
+   private:
+    Enum m_type;
 };
 
 struct Dependency {

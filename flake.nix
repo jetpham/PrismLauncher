@@ -9,15 +9,10 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "https://channels.nixos.org/nixos-25.11/nixexprs.tar.xz";
 
     libnbtplusplus = {
       url = "github:PrismLauncher/libnbtplusplus";
-      flake = false;
-    };
-
-    qrcodegenerator = {
-      url = "github:nayuki/QR-Code-generator";
       flake = false;
     };
   };
@@ -27,7 +22,6 @@
       self,
       nixpkgs,
       libnbtplusplus,
-      qrcodegenerator,
     }:
 
     let
@@ -92,6 +86,7 @@
         let
           pkgs = nixpkgsFor.${system};
           llvm = pkgs.llvmPackages_19;
+          mkShell = pkgs.mkShell.override { inherit (llvm) stdenv; };
 
           packages' = self.packages.${system};
 
@@ -137,7 +132,7 @@
         in
 
         {
-          default = pkgs.mkShell {
+          default = mkShell {
             name = "prism-launcher";
 
             inputsFrom = [ packages'.prismlauncher-unwrapped ];
@@ -145,10 +140,11 @@
             packages = with pkgs; [
               ccache
               llvm.clang-tools
+              python3 # Required for `run-clang-tidy`, etc.
             ];
 
             cmakeBuildType = "Debug";
-            cmakeFlags = [ "-GNinja" ] ++ packages'.prismlauncher.cmakeFlags;
+            cmakeFlags = [ "-GNinja" ] ++ packages'.prismlauncher-unwrapped.cmakeFlags;
             dontFixCmake = true;
 
             shellHook = ''
@@ -171,17 +167,24 @@
 
       formatter = forAllSystems (system: nixpkgsFor.${system}.nixfmt-rfc-style);
 
-      overlays.default = final: prev: {
-        prismlauncher-unwrapped = prev.callPackage ./nix/unwrapped.nix {
-          inherit
-            libnbtplusplus
-            qrcodegenerator
-            self
-            ;
-        };
+      overlays.default =
+        final: prev:
 
-        prismlauncher = final.callPackage ./nix/wrapper.nix { };
-      };
+        let
+          llvm = final.llvmPackages_19 or prev.llvmPackages_19;
+        in
+
+        {
+          prismlauncher-unwrapped = prev.callPackage ./nix/unwrapped.nix {
+            inherit (llvm) stdenv;
+            inherit
+              libnbtplusplus
+              self
+              ;
+          };
+
+          prismlauncher = final.callPackage ./nix/wrapper.nix { };
+        };
 
       packages = forAllSystems (
         system:

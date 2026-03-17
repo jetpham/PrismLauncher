@@ -93,9 +93,8 @@ class ResourceModel : public QAbstractListModel {
 
     void addPack(ModPlatform::IndexedPack::Ptr pack,
                  ModPlatform::IndexedVersion& version,
-                 std::shared_ptr<ResourceFolderModel> packs,
-                 bool is_indexed = false,
-                 QString custom_target_folder = {});
+                 ResourceFolderModel* packs,
+                 bool is_indexed = false);
     void removePack(const QString& rem);
     QList<DownloadTaskPtr> selectedPacks() { return m_selected; }
 
@@ -138,13 +137,13 @@ class ResourceModel : public QAbstractListModel {
    private:
     /* Default search request callbacks */
     void searchRequestSucceeded(QList<ModPlatform::IndexedPack::Ptr>&);
-    void searchRequestForOneSucceeded(ModPlatform::IndexedPack&);
+    void searchRequestForOneSucceeded(ModPlatform::IndexedPack::Ptr);
     void searchRequestFailed(QString reason, int network_error_code);
     void searchRequestAborted();
 
     void versionRequestSucceeded(QVector<ModPlatform::IndexedVersion>&, QVariant, const QModelIndex&);
 
-    void infoRequestSucceeded(ModPlatform::IndexedPack&, const QModelIndex&);
+    void infoRequestSucceeded(ModPlatform::IndexedPack::Ptr, const QModelIndex&);
 
    signals:
     void versionListUpdated(const QModelIndex& index);

@@ -134,15 +134,14 @@ QList<ModPlatform::Dependency> GetModDependenciesTask::getDependenciesForVersion
 Task::Ptr GetModDependenciesTask::getProjectInfoTask(std::shared_ptr<PackDependency> pDep)
 {
     auto provider = pDep->pack->provider;
-    auto responseInfo = std::make_shared<QByteArray>();
-    auto info = getAPI(provider)->getProject(pDep->pack->addonId.toString(), responseInfo);
+    auto [info, responseInfo] = getAPI(provider)->getProject(pDep->pack->addonId.toString());
     connect(info.get(), &NetJob::succeeded, [this, responseInfo, provider, pDep] {
         QJsonParseError parse_error{};
         QJsonDocument doc = QJsonDocument::fromJson(*responseInfo, &parse_error);
         if (parse_error.error != QJsonParseError::NoError) {
             removePack(pDep->pack->addonId);
-            qWarning() << "Error while parsing JSON response for mod info at " << parse_error.offset
-                       << " reason: " << parse_error.errorString();
+            qWarning() << "Error while parsing JSON response for mod info at" << parse_error.offset
+                       << "reason:" << parse_error.errorString();
             qDebug() << *responseInfo;
             return;
         }
@@ -154,7 +153,7 @@ Task::Ptr GetModDependenciesTask::getProjectInfoTask(std::shared_ptr<PackDepende
         } catch (const JSONValidationError& e) {
             removePack(pDep->pack->addonId);
             qDebug() << doc;
-            qWarning() << "Error while reading mod info: " << e.cause();
+            qWarning() << "Error while reading mod info:" << e.cause();
         }
     });
     return info;

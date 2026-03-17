@@ -11,30 +11,29 @@
 #include "modplatform/modrinth/ModrinthPackIndex.h"
 
 #include <QDebug>
+#include <utility>
 
 class ModrinthAPI : public ResourceAPI {
    public:
-    Task::Ptr currentVersion(QString hash, QString hash_format, std::shared_ptr<QByteArray> response);
+    std::pair<Task::Ptr, QByteArray*> currentVersion(QString hash, QString hash_format);
 
-    Task::Ptr currentVersions(const QStringList& hashes, QString hash_format, std::shared_ptr<QByteArray> response);
+    std::pair<Task::Ptr, QByteArray*> currentVersions(const QStringList& hashes, QString hash_format);
 
-    Task::Ptr latestVersion(QString hash,
-                            QString hash_format,
-                            std::optional<std::list<Version>> mcVersions,
-                            std::optional<ModPlatform::ModLoaderTypes> loaders,
-                            std::shared_ptr<QByteArray> response);
+    std::pair<Task::Ptr, QByteArray*> latestVersion(QString hash,
+                                                    QString hash_format,
+                                                    std::optional<std::vector<Version>> mcVersions,
+                                                    std::optional<ModPlatform::ModLoaderTypes> loaders);
 
-    Task::Ptr latestVersions(const QStringList& hashes,
-                             QString hash_format,
-                             std::optional<std::list<Version>> mcVersions,
-                             std::optional<ModPlatform::ModLoaderTypes> loaders,
-                             std::shared_ptr<QByteArray> response);
+    std::pair<Task::Ptr, QByteArray*> latestVersions(const QStringList& hashes,
+                                                     QString hash_format,
+                                                     std::optional<std::vector<Version>> mcVersions,
+                                                     std::optional<ModPlatform::ModLoaderTypes> loaders);
 
-    Task::Ptr getProjects(QStringList addonIds, std::shared_ptr<QByteArray> response) const override;
+    std::pair<Task::Ptr, QByteArray*> getProjects(QStringList addonIds) const override;
 
-    static Task::Ptr getModCategories(std::shared_ptr<QByteArray> response);
-    static QList<ModPlatform::Category> loadCategories(std::shared_ptr<QByteArray> response, QString projectType);
-    static QList<ModPlatform::Category> loadModCategories(std::shared_ptr<QByteArray> response);
+    static std::pair<Task::Ptr, QByteArray*> getModCategories();
+    static QList<ModPlatform::Category> loadCategories(const QByteArray& response, QString projectType);
+    static QList<ModPlatform::Category> loadModCategories(const QByteArray& response);
 
    public:
     auto getSortingMethods() const -> QList<ResourceAPI::SortingMethod> override;
@@ -45,7 +44,8 @@ class ModrinthAPI : public ResourceAPI {
     {
         QStringList l;
         for (auto loader : { ModPlatform::NeoForge, ModPlatform::Forge, ModPlatform::Fabric, ModPlatform::Quilt, ModPlatform::LiteLoader,
-                             ModPlatform::DataPack, ModPlatform::Babric, ModPlatform::BTA, ModPlatform::LegacyFabric, ModPlatform::Ornithe, ModPlatform::Rift }) {
+                             ModPlatform::DataPack, ModPlatform::Babric, ModPlatform::BTA, ModPlatform::LegacyFabric, ModPlatform::Ornithe,
+                             ModPlatform::Rift }) {
             if (types & loader) {
                 l << getModLoaderAsString(loader);
             }
@@ -188,10 +188,10 @@ class ModrinthAPI : public ResourceAPI {
             get_arguments.append(QString("loaders=[\"%1\"]").arg(getModLoaderStrings(args.loaders.value()).join("\",\"")));
 
         return QString("%1/project/%2/version%3%4")
-            .arg(BuildConfig.MODRINTH_PROD_URL, args.pack.addonId.toString(), get_arguments.isEmpty() ? "" : "?", get_arguments.join('&'));
+            .arg(BuildConfig.MODRINTH_PROD_URL, args.pack->addonId.toString(), get_arguments.isEmpty() ? "" : "?", get_arguments.join('&'));
     };
 
-    QString getGameVersionsArray(std::list<Version> mcVersions) const
+    QString getGameVersionsArray(std::vector<Version> mcVersions) const
     {
         QString s;
         for (auto& ver : mcVersions) {
@@ -204,7 +204,8 @@ class ModrinthAPI : public ResourceAPI {
     static inline auto validateModLoaders(ModPlatform::ModLoaderTypes loaders) -> bool
     {
         return loaders & (ModPlatform::NeoForge | ModPlatform::Forge | ModPlatform::Fabric | ModPlatform::Quilt | ModPlatform::LiteLoader |
-                          ModPlatform::DataPack | ModPlatform::Babric | ModPlatform::BTA | ModPlatform::LegacyFabric | ModPlatform::Ornithe | ModPlatform::Rift);
+                          ModPlatform::DataPack | ModPlatform::Babric | ModPlatform::BTA | ModPlatform::LegacyFabric |
+                          ModPlatform::Ornithe | ModPlatform::Rift);
     }
 
     std::optional<QString> getDependencyURL(DependencySearchArgs const& args) const override

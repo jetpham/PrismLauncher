@@ -46,12 +46,13 @@ void FlameCheckUpdate::executeTask()
     connect(netJob, &Task::stepProgress, this, &FlameCheckUpdate::propagateStepProgress);
     connect(netJob, &Task::details, this, &FlameCheckUpdate::setDetails);
     for (auto* resource : m_resources) {
-        auto versionsUrlOptional = api.getVersionsURL({ { resource->metadata()->project_id.toString() }, m_gameVersions });
+        auto project = std::make_shared<ModPlatform::IndexedPack>();
+        project->addonId = resource->metadata()->project_id.toString();
+        auto versionsUrlOptional = api.getVersionsURL({ project, m_gameVersions });
         if (!versionsUrlOptional.has_value())
             continue;
 
-        auto response = std::make_shared<QByteArray>();
-        auto task = Net::ApiDownload::makeByteArray(versionsUrlOptional.value(), response);
+        auto [task, response] = Net::ApiDownload::makeByteArray(versionsUrlOptional.value());
 
         connect(task.get(), &Task::succeeded, this, [this, resource, response] { getLatestVersionCallback(resource, response); });
         netJob->addNetAction(task);
@@ -60,13 +61,13 @@ void FlameCheckUpdate::executeTask()
     m_task->start();
 }
 
-void FlameCheckUpdate::getLatestVersionCallback(Resource* resource, std::shared_ptr<QByteArray> response)
+void FlameCheckUpdate::getLatestVersionCallback(Resource* resource, QByteArray* response)
 {
     QJsonParseError parse_error{};
     QJsonDocument doc = QJsonDocument::fromJson(*response, &parse_error);
     if (parse_error.error != QJsonParseError::NoError) {
-        qWarning() << "Error while parsing JSON response from latest mod version at " << parse_error.offset
-                   << " reason: " << parse_error.errorString();
+        qWarning() << "Error while parsing JSON response from latest mod version at" << parse_error.offset
+                   << "reason:" << parse_error.errorString();
         qWarning() << *response;
         return;
     }
@@ -137,24 +138,24 @@ void FlameCheckUpdate::collectBlockedMods()
         quickSearch[addonId] = resource;
     }
 
-    auto response = std::make_shared<QByteArray>();
     Task::Ptr projTask;
+    QByteArray* response;
 
     if (addonIds.isEmpty()) {
         emitSucceeded();
         return;
     } else if (addonIds.size() == 1) {
-        projTask = api.getProject(*addonIds.begin(), response);
+        std::tie(projTask, response) = api.getProject(*addonIds.begin());
     } else {
-        projTask = api.getProjects(addonIds, response);
+        std::tie(projTask, response) = api.getProjects(addonIds);
     }
 
     connect(projTask.get(), &Task::succeeded, this, [this, response, addonIds, quickSearch] {
         QJsonParseError parse_error{};
         auto doc = QJsonDocument::fromJson(*response, &parse_error);
         if (parse_error.error != QJsonParseError::NoError) {
-            qWarning() << "Error while parsing JSON response from Flame projects task at " << parse_error.offset
-                       << " reason: " << parse_error.errorString();
+            qWarning() << "Error while parsing JSON response from Flame projects task at" << parse_error.offset
+                       << "reason:" << parse_error.errorString();
             qWarning() << *response;
             return;
         }

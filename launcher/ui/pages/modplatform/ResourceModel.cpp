@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "Application.h"
+#include "settings/SettingsObject.h"
 #include "BuildConfig.h"
 
 #include "modplatform/ResourceAPI.h"
@@ -141,7 +142,7 @@ void ResourceModel::search()
     if (m_search_term.startsWith("#")) {
         auto projectId = m_search_term.mid(1);
         if (!projectId.isEmpty()) {
-            ResourceAPI::Callback<ModPlatform::IndexedPack> callbacks;
+            ResourceAPI::Callback<ModPlatform::IndexedPack::Ptr> callbacks;
 
             callbacks.on_fail = [this](QString reason, int) {
                 if (!s_running_models.constFind(this).value())
@@ -159,7 +160,9 @@ void ResourceModel::search()
                     return;
                 searchRequestForOneSucceeded(pack);
             };
-            if (auto job = m_api->getProjectInfo({ projectId }, std::move(callbacks)); job)
+            auto project = std::make_shared<ModPlatform::IndexedPack>();
+            project->addonId = projectId;
+            if (auto job = m_api->getProjectInfo({ project }, std::move(callbacks)); job)
                 runSearchJob(job);
             return;
         }
@@ -219,7 +222,7 @@ void ResourceModel::loadEntry(const QModelIndex& entry)
 
     if (!pack->extraDataLoaded) {
         auto args{ createInfoArguments(entry) };
-        ResourceAPI::Callback<ModPlatform::IndexedPack> callbacks{};
+        ResourceAPI::Callback<ModPlatform::IndexedPack::Ptr> callbacks{};
 
         callbacks.on_succeed = [this, entry](auto& newpack) {
             if (!s_running_models.constFind(this).value())
@@ -388,12 +391,12 @@ void ResourceModel::searchRequestSucceeded(QList<ModPlatform::IndexedPack::Ptr>&
     endInsertRows();
 }
 
-void ResourceModel::searchRequestForOneSucceeded(ModPlatform::IndexedPack& pack)
+void ResourceModel::searchRequestForOneSucceeded(ModPlatform::IndexedPack::Ptr pack)
 {
     m_search_state = SearchState::Finished;
 
     beginInsertRows(QModelIndex(), m_packs.size(), m_packs.size() + 1);
-    m_packs.append(std::make_shared<ModPlatform::IndexedPack>(pack));
+    m_packs.append(pack);
     endInsertRows();
 }
 
@@ -448,18 +451,17 @@ void ResourceModel::versionRequestSucceeded(QVector<ModPlatform::IndexedVersion>
     emit versionListUpdated(index);
 }
 
-void ResourceModel::infoRequestSucceeded(ModPlatform::IndexedPack& pack, const QModelIndex& index)
+void ResourceModel::infoRequestSucceeded(ModPlatform::IndexedPack::Ptr pack, const QModelIndex& index)
 {
     auto current_pack = data(index, Qt::UserRole).value<ModPlatform::IndexedPack::Ptr>();
 
     // Check if the index is still valid for this resource or not
-    if (pack.addonId != current_pack->addonId)
+    if (pack->addonId != current_pack->addonId)
         return;
 
-    *current_pack = pack;
     // Cache info :^)
     QVariant new_pack;
-    new_pack.setValue(current_pack);
+    new_pack.setValue(pack);
     if (!setData(index, new_pack, Qt::UserRole)) {
         qWarning() << "Failed to cache resource info!";
         return;
@@ -470,12 +472,11 @@ void ResourceModel::infoRequestSucceeded(ModPlatform::IndexedPack& pack, const Q
 
 void ResourceModel::addPack(ModPlatform::IndexedPack::Ptr pack,
                             ModPlatform::IndexedVersion& version,
-                            const std::shared_ptr<ResourceFolderModel> packs,
-                            bool is_indexed,
-                            QString custom_target_folder)
+                            ResourceFolderModel* packs,
+                            bool is_indexed)
 {
     version.is_currently_selected = true;
-    m_selected.append(makeShared<ResourceDownloadTask>(pack, version, packs, is_indexed, custom_target_folder));
+    m_selected.append(makeShared<ResourceDownloadTask>(pack, version, packs, is_indexed));
 }
 
 void ResourceModel::removePack(const QString& rem)
